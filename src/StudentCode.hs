@@ -1,7 +1,5 @@
 module StudentCode where
 
-import Debug.Trace
-
 type RowPos = Int
 type ColumnPos = Int
 type Position = (RowPos, ColumnPos)
@@ -20,7 +18,7 @@ type Board = [[Block]]
 type Stack = [State]
 
 
-data State = State {  stateId::Int,
+data State = State {  stateId::Integer,
                       gameBoard::Board,
                       winnerFound::Bool,
                       bluePlayerPositions::BluePlayerPositions,
@@ -29,7 +27,7 @@ data State = State {  stateId::Int,
                       buildingsList::BuildingsList}
 
 data Game = Game {
-  idGen::Int,
+  idGen::Integer,
   gameState::State,
   undoStack::Stack,
   redoStack::Stack
@@ -231,13 +229,24 @@ floorCheck floors
   | floors == 3 = True
   | otherwise = False
 
+
+updateRedoStack :: State -> Stack -> Stack
+updateRedoStack s1 [] = []
+updateRedoStack s1 (s2:ss)
+  | id1 > id2 = []
+  | otherwise = (s2:ss)
+    where id1 = getStateId s1
+          id2 = getStateId s2
+
+
 tryMove :: Game -> (Position, Position, Position) -> Game
 tryMove (Game idGen ((State sid board winner bluePositions redPositions currentPlayer buildingsList)) undoStack redoStack) (cp,np,bp)
   | validMove == False || winner == True = (Game idGen ((State sid board winner bluePositions redPositions currentPlayer buildingsList)) undoStack redoStack)
-  | otherwise = trace("New ID = " ++ show nsid) (Game (idGen + 1) newState newUndoStack redoStack)
+  | otherwise = (Game newIdGen newState newUndoStack newRedoStack)
     where validMove = possibleMove currentPlayer (cp,np,bp) ((cbp,cbtf),(nbp,nbtf),(bbp,bbtf))
           ((cbp,cbtf),(nbp,nbtf),(bbp,bbtf)) = positionsToBlocks board (cp,np,bp)
-          nsid = (idGen + 1)
+          nsid = (idGen + 2)
+          newIdGen = (idGen + 2)
           newCurrentBlock = (0,cbtf)
           newNextBlock =  (cbp,nbtf)
           newBuildingBlock = (0,(bbtf + 1))
@@ -251,6 +260,7 @@ tryMove (Game idGen ((State sid board winner bluePositions redPositions currentP
           winnerFound = (floorCheck nbtf) || (winnerCheck newBoard currentPlayer newBluePos newRedPos)
           newState = (State nsid newBoard winnerFound newBluePos newRedPos newCurrentPlayer newBuildingsList)
           newUndoStack = (newState:undoStack)
+          newRedoStack = updateRedoStack newState redoStack
 
 
 -- #######################################
@@ -258,24 +268,15 @@ tryMove (Game idGen ((State sid board winner bluePositions redPositions currentP
 -- #######################################
 
 
-getStateId :: State -> Int
+getStateId :: State -> Integer
 getStateId (State sid _ _ _ _ _ _) = sid
 
-updateRedoStack :: State -> [State] -> [State]
-updateRedoStack s1 [] = (s1:[])
-updateRedoStack s1 (s2:ss)
-  | id1 > id2 = []
-  | otherwise = (s1:s2:ss)
-    where id1 = getStateId s1
-          id2 = getStateId s2
 
 undoMove :: Game -> Game
-undoMove (Game idGen currentState (uds:udss) redoStack)
-  | stackLength == 1 = (Game idGen currentState (uds:udss) redoStack)
-  | otherwise = (Game idGen olderState udss newRedoStack)
-    where stackLength = length (uds:udss)
-          olderState = head udss
-          newRedoStack = updateRedoStack uds redoStack
+undoMove (Game idGen currentState (uds:[]) redoStack) = (Game idGen currentState (uds:[]) redoStack)
+undoMove (Game idGen currentState (uds:udss) redoStack) = (Game idGen olderState udss newRedoStack)
+    where olderState = head udss
+          newRedoStack = (uds:redoStack)
 
 
 redoMove :: Game -> Game
