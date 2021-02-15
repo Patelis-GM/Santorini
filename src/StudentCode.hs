@@ -1,5 +1,6 @@
 module StudentCode where
 
+import Debug.Trace
 
 type RowPos = Int
 type ColumnPos = Int
@@ -232,8 +233,8 @@ floorCheck floors
 
 tryMove :: Game -> (Position, Position, Position) -> Game
 tryMove (Game idGen ((State sid board winner bluePositions redPositions currentPlayer buildingsList)) undoStack redoStack) (cp,np,bp)
-  | validMove == False || winner == True = (Game (idGen + 1) ((State sid board winner bluePositions redPositions currentPlayer buildingsList)) undoStack redoStack)
-  | otherwise = (Game (idGen + 1) newState newUndoStack redoStack)
+  | validMove == False || winner == True = (Game idGen ((State sid board winner bluePositions redPositions currentPlayer buildingsList)) undoStack redoStack)
+  | otherwise = trace("New ID = " ++ show nsid) (Game (idGen + 1) newState newUndoStack redoStack)
     where validMove = possibleMove currentPlayer (cp,np,bp) ((cbp,cbtf),(nbp,nbtf),(bbp,bbtf))
           ((cbp,cbtf),(nbp,nbtf),(bbp,bbtf)) = positionsToBlocks board (cp,np,bp)
           nsid = (idGen + 1)
@@ -275,6 +276,7 @@ undoMove (Game idGen currentState (uds:udss) redoStack)
     where stackLength = length (uds:udss)
           olderState = head udss
           newRedoStack = updateRedoStack uds redoStack
+
 
 redoMove :: Game -> Game
 redoMove (Game idGen currentState undoStack []) = (Game idGen currentState undoStack [])
@@ -352,8 +354,8 @@ getFloorPoints ((_,tf1),(_,tf2)) (oab1,oab2) = firstPoints + secondPoints
 
 imminentWinPoints :: Int -> Int -> [Block] -> Int -> Int
 imminentWinPoints _ oa [] 1
-  | oa == 0 = 150
-  | oa == 1 = 10
+  | oa == 0 = 250
+  | oa == 1 = 50
   | oa == 2 = 5
 imminentWinPoints _ _ [] 2 = 500
 imminentWinPoints _ _ [] _ = 0
@@ -387,26 +389,20 @@ surroundingsPoints pf oa ((_,af):bs)
   | fd == 1 && pf == 0 && oa == 0 = 5 + surroundingsPoints pf oa bs
   | fd == 1 && pf == 0 && oa == 1 = 3 + surroundingsPoints pf oa bs
   | fd == 1 && pf == 0 && oa == 2 = 1 + surroundingsPoints pf oa bs
-
   | fd == 1 && pf == 1 && oa == 0 = 15 + surroundingsPoints pf oa bs
   | fd == 1 && pf == 1 && oa == 1 = 13 + surroundingsPoints pf oa bs
   | fd == 1 && pf == 1 && oa == 2 = 11 + surroundingsPoints pf oa bs
-
   | fd == 1 && pf == 2 && oa == 0 = 20 + surroundingsPoints pf oa bs
   | fd == 1 && pf == 2 && oa == 1 = 18 + surroundingsPoints pf oa bs
   | fd == 1 && pf == 2 && oa == 2 = 16 + surroundingsPoints pf oa bs
-
   | fd == 2 && oa == 0 = (-35) + surroundingsPoints pf oa bs
   | fd == 2 && oa == 1 = (-40) + surroundingsPoints pf oa bs
   | fd == 2 && oa == 2 = (-45) + surroundingsPoints pf oa bs
-
   | fd == 3 && oa == 0 = (-50) + surroundingsPoints pf oa bs
   | fd == 3 && oa == 1 = (-55) + surroundingsPoints pf oa bs
   | fd == 3 && oa == 2 = (-60) + surroundingsPoints pf oa bs
-
-  | fd == 0 && (pf == 0 || pf == 1) = surroundingsPoints pf oa bs
-  | fd == 0 && pf == 2 = 20 + surroundingsPoints pf oa bs
-
+  | fd == 4 = (-65) + surroundingsPoints pf oa bs
+  | fd == 0 = surroundingsPoints pf oa bs
   | otherwise = (-60) + surroundingsPoints pf oa bs
     where fd = af - pf
 
