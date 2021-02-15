@@ -18,8 +18,7 @@ type Board = [[Block]]
 type Stack = [State]
 
 
-data State = State {  stateId::Integer,
-                      gameBoard::Board,
+data State = State {  gameBoard::Board,
                       winnerFound::Bool,
                       bluePlayerPositions::BluePlayerPositions,
                       redPlayerPositions::RedPlayerPositions,
@@ -27,7 +26,6 @@ data State = State {  stateId::Integer,
                       buildingsList::BuildingsList}
 
 data Game = Game {
-  idGen::Integer,
   gameState::State,
   undoStack::Stack,
   redoStack::Stack
@@ -113,8 +111,8 @@ defaultInitialPositions (bp1:bp2:rp1:rp2:[])
           check4 = belongs rp2 (bp1:bp2:rp1:[])
 
 initializeGame :: BluePlayerPositions -> RedPlayerPositions -> Game
-initializeGame (bp1,bp2) (rp1,rp2) = Game 1 initialState (initialState:[]) []
-  where initialState = State 1 finalBoard False (rbp1,rbp2) (rrp1,rrp2) 'B' []
+initializeGame (bp1,bp2) (rp1,rp2) = Game initialState (initialState:[]) []
+  where initialState = State finalBoard False (rbp1,rbp2) (rrp1,rrp2) 'B' []
         gameBoard = createBoard 5 5
         blueBlock1 = (1,0)
         blueBlock2 = (3,0)
@@ -139,7 +137,7 @@ declareWinner winnerFound player
   | otherwise = player
 
 screenshotGame :: Game -> (Bool, Turn, BluePlayerPositions, RedPlayerPositions, BuildingsList)
-screenshotGame (Game _ ((State _ _ winnerFound bluePlayerPositions redPlayerPositions currentPlayer buildingsList)) _ _) = (mWinnerFound,player,mBluePlayerPositions,mRedPlayerPositions,mBuildingsList)
+screenshotGame (Game ((State _ winnerFound bluePlayerPositions redPlayerPositions currentPlayer buildingsList)) _ _) = (mWinnerFound,player,mBluePlayerPositions,mRedPlayerPositions,mBuildingsList)
   where player = declareWinner winnerFound currentPlayer
         mWinnerFound = winnerFound
         mBluePlayerPositions = bluePlayerPositions
@@ -230,23 +228,12 @@ floorCheck floors
   | otherwise = False
 
 
-updateRedoStack :: State -> Stack -> Stack
-updateRedoStack s1 [] = []
-updateRedoStack s1 (s2:ss)
-  | id1 > id2 = []
-  | otherwise = (s2:ss)
-    where id1 = getStateId s1
-          id2 = getStateId s2
-
-
 tryMove :: Game -> (Position, Position, Position) -> Game
-tryMove (Game idGen ((State sid board winner bluePositions redPositions currentPlayer buildingsList)) undoStack redoStack) (cp,np,bp)
-  | validMove == False || winner == True = (Game idGen ((State sid board winner bluePositions redPositions currentPlayer buildingsList)) undoStack redoStack)
-  | otherwise = (Game newIdGen newState newUndoStack newRedoStack)
+tryMove (Game ((State board winner bluePositions redPositions currentPlayer buildingsList)) undoStack redoStack) (cp,np,bp)
+  | validMove == False || winner == True = (Game ((State board winner bluePositions redPositions currentPlayer buildingsList)) undoStack redoStack)
+  | otherwise = (Game newState newUndoStack [])
     where validMove = possibleMove currentPlayer (cp,np,bp) ((cbp,cbtf),(nbp,nbtf),(bbp,bbtf))
           ((cbp,cbtf),(nbp,nbtf),(bbp,bbtf)) = positionsToBlocks board (cp,np,bp)
-          nsid = (idGen + 2)
-          newIdGen = (idGen + 2)
           newCurrentBlock = (0,cbtf)
           newNextBlock =  (cbp,nbtf)
           newBuildingBlock = (0,(bbtf + 1))
@@ -258,9 +245,8 @@ tryMove (Game idGen ((State sid board winner bluePositions redPositions currentP
           newRedPos = newPositions redPositions (cp,np)
           newBuildingsList = newBuildings buildingsList bp bbtf
           winnerFound = (floorCheck nbtf) || (winnerCheck newBoard currentPlayer newBluePos newRedPos)
-          newState = (State nsid newBoard winnerFound newBluePos newRedPos newCurrentPlayer newBuildingsList)
+          newState = (State newBoard winnerFound newBluePos newRedPos newCurrentPlayer newBuildingsList)
           newUndoStack = (newState:undoStack)
-          newRedoStack = updateRedoStack newState redoStack
 
 
 -- #######################################
@@ -268,20 +254,16 @@ tryMove (Game idGen ((State sid board winner bluePositions redPositions currentP
 -- #######################################
 
 
-getStateId :: State -> Integer
-getStateId (State sid _ _ _ _ _ _) = sid
-
-
 undoMove :: Game -> Game
-undoMove (Game idGen currentState (uds:[]) redoStack) = (Game idGen currentState (uds:[]) redoStack)
-undoMove (Game idGen currentState (uds:udss) redoStack) = (Game idGen olderState udss newRedoStack)
+undoMove (Game currentState (uds:[]) redoStack) = (Game currentState (uds:[]) redoStack)
+undoMove (Game currentState (uds:udss) redoStack) = (Game olderState udss newRedoStack)
     where olderState = head udss
           newRedoStack = (uds:redoStack)
 
 
 redoMove :: Game -> Game
-redoMove (Game idGen currentState undoStack []) = (Game idGen currentState undoStack [])
-redoMove (Game idGen currentState undoStack (rds:rdss)) = (Game idGen newerState newUndoStack rdss)
+redoMove (Game currentState undoStack []) = (Game currentState undoStack [])
+redoMove (Game currentState undoStack (rds:rdss)) = (Game newerState newUndoStack rdss)
   where newerState = rds
         newUndoStack = (rds:undoStack)
 
@@ -308,7 +290,7 @@ getMoves :: Board -> Position -> Int -> [(Position, Position, Position)]
 getMoves board cp pId = [(cp,np,bp) | np <- (getAdjacent cp), bp <- (getAdjacent np) , let npAvailable = availableNextPosition board cp np , let bpAvailable = availableBuildPosition board bp pId , npAvailable == True, bpAvailable == True]
 
 possibleMoves :: Game -> [(Position, Position, Position)]
-possibleMoves  (Game _ ((State _ board _ (bp1,bp2) (rp1,rp2) currentPlayer _)) undoStack redoStack)
+possibleMoves  (Game ((State board _ (bp1,bp2) (rp1,rp2) currentPlayer _)) undoStack redoStack)
   | currentPlayer == 'B' = bc1 ++ bc2
   | otherwise = rc1 ++ rc2
     where bc1 = getMoves board bp1 p1id
@@ -355,12 +337,12 @@ getFloorPoints ((_,tf1),(_,tf2)) (oab1,oab2) = firstPoints + secondPoints
 
 imminentWinPoints :: Int -> Int -> [Block] -> Int -> Int
 imminentWinPoints _ oa [] 1
-  | oa == 0 = 250
+  | oa == 0 = 200
   | oa == 1 = 50
-  | oa == 2 = 5
-imminentWinPoints _ _ [] 2 = 500
+  | oa == 2 = 10
+imminentWinPoints _ _ [] 2 = 1000
 imminentWinPoints _ _ [] _ = 0
-imminentWinPoints _ _ _ 2 = 500
+imminentWinPoints _ _ _ 2 = 1000
 imminentWinPoints pf oa ((ap,af):bs) total
   | pf /= 2 = 0
   | pf == 2 && ap == 0 && af == 3 = imminentWinPoints pf oa bs (total + 1)
@@ -396,13 +378,12 @@ surroundingsPoints pf oa ((_,af):bs)
   | fd == 1 && pf == 2 && oa == 0 = 20 + surroundingsPoints pf oa bs
   | fd == 1 && pf == 2 && oa == 1 = 18 + surroundingsPoints pf oa bs
   | fd == 1 && pf == 2 && oa == 2 = 16 + surroundingsPoints pf oa bs
-  | fd == 2 && oa == 0 = (-35) + surroundingsPoints pf oa bs
-  | fd == 2 && oa == 1 = (-40) + surroundingsPoints pf oa bs
-  | fd == 2 && oa == 2 = (-45) + surroundingsPoints pf oa bs
-  | fd == 3 && oa == 0 = (-50) + surroundingsPoints pf oa bs
-  | fd == 3 && oa == 1 = (-55) + surroundingsPoints pf oa bs
-  | fd == 3 && oa == 2 = (-60) + surroundingsPoints pf oa bs
-  | fd == 4 = (-65) + surroundingsPoints pf oa bs
+  | fd == 2 && oa == 0 = (-5) + surroundingsPoints pf oa bs
+  | fd == 2 && oa == 1 = (-10) + surroundingsPoints pf oa bs
+  | fd == 2 && oa == 2 = (-15) + surroundingsPoints pf oa bs
+  | fd == 3 && oa == 0 = (-20) + surroundingsPoints pf oa bs
+  | fd == 3 && oa == 1 = (-25) + surroundingsPoints pf oa bs
+  | fd == 3 && oa == 2 = (-30) + surroundingsPoints pf oa bs
   | fd == 0 = surroundingsPoints pf oa bs
   | otherwise = (-60) + surroundingsPoints pf oa bs
     where fd = af - pf
@@ -414,7 +395,7 @@ getSurroundingsPoints ((_,tf1),(_,tf2)) (n1,n2) (oab1,oab2) = firstPoints + seco
 
 
 evaluateState :: Turn -> Game -> Int
-evaluateState player (Game _ ((State _ board _ (bp1,bp2) (rp1,rp2) _ _)) _ _)
+evaluateState player (Game ((State board _ (bp1,bp2) (rp1,rp2) _ _)) _ _)
   | player == 'B' = (bpfp - rpfp) + (bpbp - rpbp) + (bpiwp - rpiwp) + (bpsp - arpsp)
   | otherwise = (rpfp - bpfp) + (rpbp - bpbp) + (rpiwp - bpiwp) + (rpsp - abpsp)
     where bp1Neighbors = getNeighbors board bp1
