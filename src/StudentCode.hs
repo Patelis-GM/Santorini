@@ -18,7 +18,8 @@ type Board = [[Block]]
 type Stack = [State]
 
 
-data State = State {  gameBoard::Board,
+data State = State {
+                      gameBoard::Board,
                       winnerFound::Bool,
                       bluePlayerPositions::BluePlayerPositions,
                       redPlayerPositions::RedPlayerPositions,
@@ -42,6 +43,30 @@ belongs _ [] = False
 belongs y (x:xs)
   | x == y = True
   | otherwise = belongs y xs
+
+getAdjacent :: Position -> [Position]
+getAdjacent (0,0) = [(a,b) | a <- [0..1] , b <-[0..1] , (a,b) /= (0,0)]
+getAdjacent (0,4) = [(a,b) | a <- [0..1] , b <-[3..4] , (a,b) /= (0,4)]
+getAdjacent (4,0) = [(a,b) | a <- [3..4] , b <-[0..1] , (a,b) /= (4,0)]
+getAdjacent (4,4) = [(a,b) | a <- [3..4] , b <-[3..4] , (a,b) /= (4,4)]
+getAdjacent (x,y)
+  | x >= 1 && x <= 3 && y == 0 = [ (a,b) | a <- [(x-1)..(x+1)] , b <-[0..1] , (a,b) /= (x,0)]
+  | x >= 1 && x <= 3 && y == 4 = [ (a,b) | a <- [(x-1)..(x+1)] , b <-[3..4] , (a,b) /= (x,4)]
+  | x == 0 && y >= 1 && y <= 3 = [ (a,b) | a <- [0..1] , b <- [(y-1)..(y+1)] , (a,b) /= (0,y)]
+  | x == 4 && y >= 1 && y <= 3 = [ (a,b) | a <- [3..4] , b <- [(y-1)..(y+1)] , (a,b) /= (4,y)]
+  | otherwise = [(a,b) | a <- [(x-1)..(x+1)] , b <- [(y-1)..(y+1)], (a,b) /= (x,y)]
+
+extendedAdjacent :: Position -> [Position]
+extendedAdjacent (0,0) = [(a,b) | a <- [0..2] , b <-[0..2]]
+extendedAdjacent (0,4) = [(a,b) | a <- [0..2] , b <-[2..4]]
+extendedAdjacent (4,0) = [(a,b) | a <- [2..4] , b <-[0..2]]
+extendedAdjacent (4,4) = [(a,b) | a <- [2..4] , b <-[2..4]]
+extendedAdjacent (x,y)
+  | x >= 1 && x <= 3 && y == 0 = [ (a,b) | a <- [(x-2)..(x+2)] , b <-[0..2] , a >= 0 , a <= 4]
+  | x >= 1 && x <= 3 && y == 4 = [ (a,b) | a <- [(x-2)..(x+2)] , b <-[2..4] , a >= 0 , a <= 4]
+  | x == 0 && y >= 1 && y <= 3 = [ (a,b) | a <- [0..2] , b <- [(y-2)..(y+2)] , b >= 0 , b <= 4]
+  | x == 4 && y >= 1 && y <= 3 = [ (a,b) | a <- [2..4] , b <- [(y-2)..(y+2)] , b >= 0 , b <= 4]
+  | otherwise = [(a,b) | a <- [(x-2)..(x+2)] , b <- [(y-2)..(y+2)], a >= 0 , a <= 4 , b >= 0 , b <= 4]
 
 
 -- ###########################
@@ -82,18 +107,6 @@ setBlock (r:rs) (rowIdx,colIdx) block
   | rowIdx == 0 = newRow : rs
   | otherwise = r : setBlock rs (rowIdx - 1,colIdx) block
     where newRow = setBlockHelper r colIdx block
-
-getAdjacent :: Position -> [Position]
-getAdjacent (0,0) = [(a,b) | a <- [0..1] , b <-[0..1] , (a,b) /= (0,0)]
-getAdjacent (0,4) = [(a,b) | a <- [0..1] , b <-[3..4] , (a,b) /= (0,4)]
-getAdjacent (4,0) = [(a,b) | a <- [3..4] , b <-[0..1] , (a,b) /= (4,0)]
-getAdjacent (4,4) = [(a,b) | a <- [3..4] , b <-[3..4] , (a,b) /= (4,4)]
-getAdjacent (x,y)
-  | x >= 1 && x <= 3 && y == 0 = [ (a,b) | a <- [(x-1)..(x+1)] , b <-[0..1] , (a,b) /= (x,0)]
-  | x >= 1 && x <= 3 && y == 4 = [ (a,b) | a <- [(x-1)..(x+1)] , b <-[3..4] , (a,b) /= (x,4)]
-  | x == 0 && y >= 1 && y <= 3 = [ (a,b) | a <- [0..1] , b <- [(y-1)..(y+1)] , (a,b) /= (0,y)]
-  | x == 4 && y >= 1 && y <= 3 = [ (a,b) | a <- [3..4] , b <- [(y-1)..(y+1)] , (a,b) /= (4,y)]
-  | otherwise = [(a,b) | a <- [(x-1)..(x+1)] , b <- [(y-1)..(y+1)], (a,b) /= (x,y)]
 
 
 -- ####################################
@@ -227,7 +240,6 @@ floorCheck floors
   | floors == 3 = True
   | otherwise = False
 
-
 tryMove :: Game -> (Position, Position, Position) -> Game
 tryMove (Game ((State board winner bluePositions redPositions currentPlayer buildingsList)) undoStack redoStack) (cp,np,bp)
   | validMove == False || winner == True = (Game ((State board winner bluePositions redPositions currentPlayer buildingsList)) undoStack redoStack)
@@ -281,13 +293,13 @@ availableNextPosition board cp np
           (ap,apf) = getBlock board np
 
 availableBuildPosition :: Board -> Position -> Int -> Bool
-availableBuildPosition board np pId
+availableBuildPosition board bp pId
   | (p == 0 || p == pId) && tf < 4 = True
   | otherwise = False
-    where (p,tf) = getBlock board np
+    where (p,tf) = getBlock board bp
 
 getMoves :: Board -> Position -> Int -> [(Position, Position, Position)]
-getMoves board cp pId = [(cp,np,bp) | np <- (getAdjacent cp), bp <- (getAdjacent np) , let npAvailable = availableNextPosition board cp np , let bpAvailable = availableBuildPosition board bp pId , npAvailable == True, bpAvailable == True]
+getMoves board cp pId = [(cp,np,bp) | np <- (getAdjacent cp), bp <- (getAdjacent np) , let npAvailable = availableNextPosition board cp np , let bpAvailable = availableBuildPosition board bp pId , npAvailable, bpAvailable]
 
 possibleMoves :: Game -> [(Position, Position, Position)]
 possibleMoves  (Game ((State board _ (bp1,bp2) (rp1,rp2) currentPlayer _)) undoStack redoStack)
@@ -308,115 +320,172 @@ possibleMoves  (Game ((State board _ (bp1,bp2) (rp1,rp2) currentPlayer _)) undoS
 -- ###################################
 
 
-boardPoints :: Position -> Int
-boardPoints (x,y)
-  | (x,y) == (2,2) = 20
-  | (x >=1 && x <= 3) && (y >= 1 && y <=3) = 15
-  | otherwise = 0
+isNearCenter :: Position -> Bool
+isNearCenter p = isAroundCenter
+  where isAroundCenter = belongs p (getAdjacent (2,2))
 
 getBoardPoints :: (Position,Position) -> Int
-getBoardPoints (p1,p2) = firstPoints + secondPoints
-  where firstPoints = boardPoints p1
-        secondPoints = boardPoints p2
+getBoardPoints (p1,p2)
+  | p1 == (2,2) && p2NearCenter = 30
+  | p2 == (2,2) && p1NearCenter = 30
+  | p1 == (2,2) && not(p2NearCenter) = 10
+  | p2 == (2,2) && not(p1NearCenter) = 10
+  | p1NearCenter && p2NearCenter = 15
+  | p1NearCenter || p2NearCenter = 5
+  | otherwise = 0
+     where p1NearCenter = isNearCenter p1
+           p2NearCenter = isNearCenter p2
 
 floorPoints :: Int -> Int -> Int
 floorPoints x oa
-  | x == 1 && oa == 0 = 5
-  | x == 1 && oa == 1 = 2
-  | x == 1 && oa == 2 = 1
-  | x == 2 && oa == 0 = 40
+  | x == 1 && oa == 0 = 40
+  | x == 1 && oa == 1 = 10
+  | x == 1 && oa == 2 = 5
+  | x == 2 && oa == 0 = 60
   | x == 2 && oa == 1 = 20
-  | x == 2 && oa == 2 = 5
+  | x == 2 && oa == 2 = 10
   | x == 3 = 10000
   | otherwise = 0
 
 getFloorPoints :: (Block,Block) -> (Int,Int) -> Int
-getFloorPoints ((_,tf1),(_,tf2)) (oab1,oab2) = firstPoints + secondPoints
-  where firstPoints = floorPoints tf1 oab1
-        secondPoints = floorPoints tf2 oab2
+getFloorPoints ((_,p1f),(_,p2f)) (oap1,oap2) = firstPoints + secondPoints
+  where firstPoints = floorPoints p1f oap1
+        secondPoints = floorPoints p2f oap2
 
-imminentWinPoints :: Int -> Int -> [Block] -> Int -> Int
-imminentWinPoints _ oa [] 1
-  | oa == 0 = 200
-  | oa == 1 = 50
-  | oa == 2 = 10
-imminentWinPoints _ _ [] 2 = 1000
-imminentWinPoints _ _ [] _ = 0
-imminentWinPoints _ _ _ 2 = 1000
-imminentWinPoints pf oa ((ap,af):bs) total
+imminentWinPoints :: Int -> [Block] -> Int -> Int -> Int
+imminentWinPoints _ [] oa total
+  | total == 2 = 500
+  | total == 1 && oa == 0 = 200
+  | total == 1 && oa == 1 = 100
+  | total == 1 && oa == 2 = 75
+  | otherwise = 0
+imminentWinPoints _ _ _ 2 = 500
+imminentWinPoints pf ((ap,af):bs) oa total
   | pf /= 2 = 0
-  | pf == 2 && ap == 0 && af == 3 = imminentWinPoints pf oa bs (total + 1)
-  | otherwise = imminentWinPoints pf oa bs total
-
+  | pf == 2 && ap == 0 && af == 3 = imminentWinPoints pf bs oa (total + 1)
+  | otherwise = imminentWinPoints pf bs oa total
 
 getImminentWinPoints :: (Block,Block) -> ([Block],[Block]) -> (Int,Int) -> Int
-getImminentWinPoints ((_,tf1),(_,tf2)) (n1,n2) (oab1,oab2)
+getImminentWinPoints ((_,tf1),(_,tf2)) (n1,n2) (oap1,oap2)
   | firstPoints == 500 || secondPoints == 500 = 500
   | otherwise = firstPoints + secondPoints
-  where firstPoints = imminentWinPoints tf1 oab1 n1 0
-        secondPoints = imminentWinPoints tf2 oab2 n2 0
+    where firstPoints = imminentWinPoints tf1 n1 oap1 0
+          secondPoints = imminentWinPoints tf2 n2 oap2 0
 
-opponentsAround :: Bool -> Int -> [Block] -> Int
-opponentsAround _ total [] = total
-opponentsAround _ 2 _ = 2
-opponentsAround bluePlayer total ((p,_):bs)
-  | bluePlayer == True && (p == 2 || p == 4) = opponentsAround bluePlayer (total + 1) bs
-  | bluePlayer == True && (p == 1 || p == 3 || p == 0) = opponentsAround bluePlayer total bs
-  | bluePlayer == False && (p == 1 || p == 3) = opponentsAround bluePlayer (total + 1) bs
-  | bluePlayer == False && (p == 2 || p == 4 || p == 0) = opponentsAround bluePlayer total bs
+evaluateFlexibility :: Int -> Int -> Int
+evaluateFlexibility p1f p2f
+  | p1f > 0 && p2f > 0 = 15
+  | p1f > 0 || p2f > 0 = 5
+  | otherwise = 0
 
+getFlexibilityMoves :: Board -> Position -> Int -> (Position,Position) -> Position -> [(Position, Position,Position)]
+getFlexibilityMoves board cp pId (o1,o2) allyPos = [(cp,np,bp) | np <- (getAdjacent cp), bp <- (getAdjacent np),let npFlexible = flexibleNextPosition board cp np , let bpFlexible = flexibleBuildPosition board np bp pId (o1,o2) allyPos, npFlexible ,bpFlexible]
 
-surroundingsPoints :: Int -> Int -> [Block] -> Int
-surroundingsPoints _ _ [] = 0
-surroundingsPoints pf oa ((_,af):bs)
-  | fd == 1 && pf == 0 && oa == 0 = 5 + surroundingsPoints pf oa bs
-  | fd == 1 && pf == 0 && oa == 1 = 3 + surroundingsPoints pf oa bs
-  | fd == 1 && pf == 0 && oa == 2 = 1 + surroundingsPoints pf oa bs
-  | fd == 1 && pf == 1 && oa == 0 = 15 + surroundingsPoints pf oa bs
-  | fd == 1 && pf == 1 && oa == 1 = 13 + surroundingsPoints pf oa bs
-  | fd == 1 && pf == 1 && oa == 2 = 11 + surroundingsPoints pf oa bs
-  | fd == 1 && pf == 2 && oa == 0 = 20 + surroundingsPoints pf oa bs
-  | fd == 1 && pf == 2 && oa == 1 = 18 + surroundingsPoints pf oa bs
-  | fd == 1 && pf == 2 && oa == 2 = 16 + surroundingsPoints pf oa bs
-  | fd == 2 && oa == 0 = (-5) + surroundingsPoints pf oa bs
-  | fd == 2 && oa == 1 = (-10) + surroundingsPoints pf oa bs
-  | fd == 2 && oa == 2 = (-15) + surroundingsPoints pf oa bs
-  | fd == 3 && oa == 0 = (-20) + surroundingsPoints pf oa bs
-  | fd == 3 && oa == 1 = (-25) + surroundingsPoints pf oa bs
-  | fd == 3 && oa == 2 = (-30) + surroundingsPoints pf oa bs
-  | fd == 0 = surroundingsPoints pf oa bs
-  | otherwise = (-60) + surroundingsPoints pf oa bs
-    where fd = af - pf
+flexibleBuildPosition :: Board -> Position -> Position -> Int -> (Position,Position) -> Position -> Bool
+flexibleBuildPosition board np bp pId (o1,o2) allyPos
+  | (bpf == 0 || bpf == pId) && bpf /= 4 && ((bpf + 1) - npf == 1) = True
+  | (bpf == 0 || bpf == pId) && bpf /= 4 && ((bpf + 1) - npf == 0) = True
+  | (bpf == 0 || bpf == pId) && bpf /= 4 && bpf == 3 && o1AroundBp && o1Floors == 2 = True
+  | (bpf == 0 || bpf == pId) && bpf /= 4 && bpf == 3 && o2AroundBp && o2Floors == 2 = True
+  | (bpf == 0 || bpf == pId) && bpf /= 4 && bpf == 3 && allyAroundBp && allyFloors == 2 = True
+  | otherwise = False
+    where (bpp,bpf) = getBlock board bp
+          (npp,npf) = getBlock board np
+          bpNeighborhood = getAdjacent bp
+          o1AroundBp = belongs o1 bpNeighborhood
+          o2AroundBp = belongs o2 bpNeighborhood
+          allyAroundBp = belongs allyPos bpNeighborhood
+          (_,o1Floors) = getBlock board o1
+          (_,o2Floors) = getBlock board o2
+          (_,allyFloors) = getBlock board allyPos
 
-getSurroundingsPoints :: (Block,Block) -> ([Block],[Block]) -> (Int,Int) -> Int
-getSurroundingsPoints ((_,tf1),(_,tf2)) (n1,n2) (oab1,oab2) = firstPoints + secondPoints
-  where firstPoints = surroundingsPoints tf1 oab1 n1
-        secondPoints = surroundingsPoints tf2 oab2 n2
+flexibleNextPosition :: Board -> Position -> Position -> Bool
+flexibleNextPosition board cp np
+  | ap == 0 && apf /=4  && pf >= 1 && pf <= 2 && (fd == 0 || fd == 1) = True
+  | otherwise = False
+    where (_,pf) = getBlock board cp
+          (ap,apf) = getBlock board np
+          fd = apf - pf
 
+allyNearbyPoints :: (Position,Position) -> Int
+allyNearbyPoints (p1,p2)
+  | (belongs p1 p2Neighborhood) || (belongs p2 p1Neighborhood) = 10
+  | otherwise = 0
+     where p1Neighborhood = extendedAdjacent p1
+           p2Neighborhood = extendedAdjacent p2
+
+opponentsAround :: Position -> (Position,Position) -> Int
+opponentsAround p (o1,o2)
+  | o1NearPlayer && o2NearPlayer = 2
+  | o1NearPlayer || o2NearPlayer = 1
+  | otherwise = 0
+    where pNeighborhood = extendedAdjacent p
+          o1NearPlayer = belongs o1 pNeighborhood
+          o2NearPlayer = belongs o2 pNeighborhood
+
+isPlayerAlly :: Int -> Int -> Bool
+isPlayerAlly p ap
+  | (p == 1 || p == 3) && (ap == 1 || ap == 3) = True
+  | (p == 2 || p == 4) && (ap == 2 || ap == 4) = True
+  | otherwise = False
+
+surroundingsPoints :: Block -> [Block] -> Int
+surroundingsPoints _  [] = 0
+surroundingsPoints (p,pf) ((ap,apf):bs)
+  | fd == 0 && apAlly && pf == 0 = -5 + surroundingsPoints (p,pf) bs
+  | fd == 0 = surroundingsPoints (p,pf) bs
+  | fd == 1 && pf == 0 = surroundingsPoints (p,pf) bs
+  | fd == 1 = 5 + surroundingsPoints (p,pf) bs
+  | fd == 2 = -10 + surroundingsPoints (p,pf) bs
+  | fd > 2 = -15 + surroundingsPoints (p,pf) bs
+  | otherwise = -3 + surroundingsPoints (p,pf) bs
+    where fd = apf - pf
+          apAlly = isPlayerAlly p ap
+
+getSurroundingsPoints :: (Block,Block) -> ([Block],[Block]) -> Int
+getSurroundingsPoints ((p1,pf1),(p2,pf2)) (n1,n2) = firstPoints + secondPoints
+  where firstPoints = surroundingsPoints (p1,pf1) n1
+        secondPoints = surroundingsPoints (p2,pf2) n2
+
+nearOpponentPoints :: Int -> Int
+nearOpponentPoints oa
+  | oa == 0 = 0
+  | oa == 1 = 40
+  | oa == 2 = 60
 
 evaluateState :: Turn -> Game -> Int
 evaluateState player (Game ((State board _ (bp1,bp2) (rp1,rp2) _ _)) _ _)
-  | player == 'B' = (bpfp - rpfp) + (bpbp - rpbp) + (bpiwp - rpiwp) + (bpsp - arpsp)
-  | otherwise = (rpfp - bpfp) + (rpbp - bpbp) + (rpiwp - bpiwp) + (rpsp - abpsp)
-    where bp1Neighbors = getNeighbors board bp1
+  | player == 'B' = blueState
+  | otherwise = redState
+    where blueState =  (bpfp - rpfp) + bpnop + (bpiwp - rpiwp) + bpap + bpbp + bpsp + bpf {-Removing bpf for depth >= 4 might make it faster -}
+          redState =  (rpfp - bpfp) + rpnop + (rpiwp - bpiwp) + rpap + rpbp + rpsp + rpf {-Removing rpf for depth >= 4 might make it faster -}
+          bp1Neighbors = getNeighbors board bp1
           bp2Neighbors = getNeighbors board bp2
           rp1Neighbors = getNeighbors board rp1
           rp2Neighbors = getNeighbors board rp2
-          bp1Block = getBlock board bp1
-          bp2Block = getBlock board bp2
-          rp1Block = getBlock board rp1
-          rp2Block = getBlock board rp2
-          bpfp = getFloorPoints (bp1Block,bp2Block) (bp1oa,bp2oa)
-          rpfp = getFloorPoints (rp1Block,rp2Block) (rp1oa,rp2oa)
-          bpbp = getBoardPoints (bp1Block,bp2Block)
-          rpbp = getBoardPoints (rp1Block,rp2Block)
-          bpiwp = getImminentWinPoints (bp1Block,bp2Block) (bp1Neighbors,bp2Neighbors) (bp1oa,bp2oa)
-          rpiwp = getImminentWinPoints (rp1Block,rp2Block) (rp1Neighbors,rp2Neighbors) (rp1oa,rp2oa)
-          bp1oa = opponentsAround True 0 bp1Neighbors
-          bp2oa = opponentsAround True 0 bp2Neighbors
-          rp1oa = opponentsAround False 0 rp1Neighbors
-          rp2oa = opponentsAround False 0 rp2Neighbors
-          bpsp = getSurroundingsPoints (bp1Block,bp2Block) (bp1Neighbors,bp2Neighbors) (bp1oa,bp2oa)
-          rpsp = getSurroundingsPoints (rp1Block,bp2Block) (rp1Neighbors,rp2Neighbors) (rp1oa,rp2oa)
-          arpsp = abs rpsp
-          abpsp = abs bpsp
+          (p1id,p1f) = getBlock board bp1
+          (p2id,p2f) = getBlock board bp2
+          (p3id,p3f) = getBlock board rp1
+          (p4id,p4f) = getBlock board rp2
+          bpfp = getFloorPoints ((p1id,p1f),(p2id,p2f)) (bp1oa,bp2oa)
+          rpfp = getFloorPoints ((p3id,p3f),(p4id,p4f)) (rp1oa,rp2oa)
+          bpbp = getBoardPoints (bp1,bp2)
+          rpbp = getBoardPoints (rp1,rp2)
+          bpiwp = getImminentWinPoints ((p1id,p1f),(p2id,p2f)) (bp1Neighbors,bp2Neighbors) (bp1oa,bp2oa)
+          rpiwp = getImminentWinPoints ((p3id,p3f),(p4id,p4f)) (rp1Neighbors,rp2Neighbors) (rp1oa,rp2oa)
+          bpf = evaluateFlexibility (length bp1f) (length bp2f)
+          rpf = evaluateFlexibility (length rp1f) (length rp2f)
+          bp1f = getFlexibilityMoves board bp1 p1id (rp1,rp2) bp2
+          bp2f = getFlexibilityMoves board bp2 p2id (rp1,rp2) bp1
+          rp1f = getFlexibilityMoves board rp1 p3id (bp1,bp2) rp2
+          rp2f = getFlexibilityMoves board rp2 p4id (bp1,bp2) rp1
+          bpap = allyNearbyPoints (bp1,bp2)
+          rpap = allyNearbyPoints (rp1,rp2)
+          bp1oa = opponentsAround bp1 (rp1,rp2)
+          bp2oa = opponentsAround bp2 (rp1,rp2)
+          rp1oa = opponentsAround rp1 (bp1,bp2)
+          rp2oa = opponentsAround rp2 (bp1,bp2)
+          bpsp = getSurroundingsPoints ((p1id,p1f),(p2id,p2f)) (bp1Neighbors,bp2Neighbors)
+          rpsp = getSurroundingsPoints ((p3id,p3f),(p4id,p4f)) (rp1Neighbors,rp2Neighbors)
+          bpnop = (nearOpponentPoints bp1oa) + (nearOpponentPoints bp2oa)
+          rpnop = (nearOpponentPoints rp1oa) + (nearOpponentPoints rp2oa)
